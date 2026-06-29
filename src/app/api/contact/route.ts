@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
 // 문의 수신 메일이 도착할 주소 (고정)
 const TO = "jaechul.cho@gmail.com";
+const LIMIT = Number(process.env.CONTACT_RATE_LIMIT ?? 3);
+const WINDOW = Number(process.env.CONTACT_RATE_WINDOW ?? 600);
 
 // POST /api/contact — 문의 접수 → TO로 메일 발송
 // SMTP 환경변수(SMTP_HOST/PORT/USER/PASS)가 설정되면 실제 발송, 없으면 로그만 남기고 접수 처리.
 export async function POST(req: NextRequest) {
+  const rl = await rateLimit(`contact:${clientIp(req)}`, LIMIT, WINDOW);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "문의가 너무 잦습니다. 잠시 후 다시 시도해 주세요." }, { status: 429 });
+  }
+
   let body: any;
   try {
     body = await req.json();
