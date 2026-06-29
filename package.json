@@ -1,0 +1,32 @@
+{
+  "name": "geo-analyzer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GEO Analyzer — URL을 입력하면 AI 검색 노출 준비 상태를 진단하는 서비스 (MVP)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "bullmq": "^5.34.0",
+    "cheerio": "^1.0.0",
+    "ioredis": "^5.4.1",
+    "next": "14.2",
+    "nodemailer": "^6.10.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/nodemailer": "^6.4.24",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.6.2"
+  }
+}
