@@ -1,11 +1,11 @@
 // 최소 KV 클라이언트 (Vercel KV / Upstash Redis REST).
 // 의존성 없이 fetch로 REST 명령을 실행한다. 환경변수 없으면 비활성(호출 측에서 폴백).
 //
-// 필요한 env: KV_REST_API_URL, KV_REST_API_TOKEN
-// (Vercel에서 KV/Upstash 연동 시 자동 주입됨)
+// env: KV_REST_API_URL/TOKEN (Vercel KV) 또는 UPSTASH_REDIS_REST_URL/TOKEN (Upstash Marketplace)
+// — 연동 방식에 따라 주입되는 이름이 다르므로 둘 다 지원한다.
 
-const URL_ = process.env.KV_REST_API_URL;
-const TOKEN = process.env.KV_REST_API_TOKEN;
+const URL_ = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+const TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
 export function kvAvailable(): boolean {
   return !!(URL_ && TOKEN);
