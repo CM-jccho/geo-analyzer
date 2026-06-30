@@ -152,6 +152,7 @@ export default function Home() {
             <a href="#levels" className="hover:text-slate-900">성숙도</a>
             <a href="#pricing" className="hover:text-slate-900">가격</a>
             <a href="#contact" className="hover:text-slate-900">문의</a>
+            <a href="/security" className="font-medium text-emerald-600 hover:text-emerald-700">보안 스캔</a>
           </div>
         </div>
       </nav>
