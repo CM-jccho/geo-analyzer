@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addLead } from "@/lib/leadStore";
+import { notify } from "@/lib/notify";
 
 export const runtime = "nodejs";
 
@@ -27,8 +28,10 @@ export async function POST(req: NextRequest) {
     createdAt: new Date().toISOString(),
   });
 
-  // TODO(프로덕션): 운영자 알림(Telegram/Slack/이메일) + CRM 연동
   console.log(`[lead] ${email} · ${body.url} · ${body.score}/${body.maxScore} · ${(body.packages ?? []).join(", ")}`);
+
+  // 운영자 실시간 알림 (Telegram/Slack — 설정 시)
+  void notify(`💼 적용 대행 리드\n이메일: ${email}\n대상: ${body.url}\n점수: ${body.score}/${body.maxScore}\n패키지: ${(body.packages ?? []).join(", ")}`);
 
   return NextResponse.json({ ok: true });
 }

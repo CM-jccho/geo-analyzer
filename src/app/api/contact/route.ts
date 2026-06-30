@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
+import { notify } from "@/lib/notify";
 
 export const runtime = "nodejs";
 
@@ -34,6 +35,9 @@ export async function POST(req: NextRequest) {
 
   const subject = `[GEO Analyzer 문의] ${email}`;
   const text = `새 문의가 접수되었습니다.\n\n■ 이메일: ${email}\n■ 전화번호: ${phone}\n\n■ 문의 내용:\n${message}\n\n— 접수 시각: ${new Date().toLocaleString("ko-KR")}`;
+
+  // 운영자 실시간 알림 (Telegram/Slack — 설정 시)
+  void notify(`📨 새 문의\n이메일: ${email}\n전화: ${phone}\n내용: ${message.slice(0, 200)}`);
 
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
 

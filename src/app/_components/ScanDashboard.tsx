@@ -1,7 +1,88 @@
 "use client";
 
+import { useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import type { ScanResult, Severity } from "@/lib/scan/types";
+import type { ScanResult, Severity, AiInsight } from "@/lib/scan/types";
+
+const RISK_STYLE: Record<string, string> = {
+  심각: "bg-red-500/15 text-red-400 border-red-500/40",
+  높음: "bg-orange-500/15 text-orange-400 border-orange-500/40",
+  보통: "bg-yellow-500/15 text-yellow-400 border-yellow-500/40",
+  낮음: "bg-emerald-500/15 text-emerald-400 border-emerald-500/40",
+};
+
+function AiAnalysis({ result }: { result: ScanResult }) {
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [insight, setInsight] = useState<AiInsight | null>(null);
+  const [err, setErr] = useState("");
+
+  const run = async () => {
+    setState("loading");
+    setErr("");
+    try {
+      const res = await fetch("/api/scan/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "AI 분석 실패");
+      setInsight(data.insight);
+      setState("done");
+    } catch (e: any) {
+      setErr(e.message);
+      setState("error");
+    }
+  };
+
+  return (
+    <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-semibold">🤖 AI 보안 분석 <span className="text-xs font-normal text-slate-400">Claude</span></h3>
+        {state !== "done" && (
+          <button
+            onClick={run}
+            disabled={state === "loading"}
+            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
+          >
+            {state === "loading" ? "분석 중…" : "AI 분석 실행"}
+          </button>
+        )}
+      </div>
+      {state === "idle" && <p className="mt-2 text-sm text-slate-400">탐지 결과를 비즈니스 영향 기준으로 우선순위화하고, 경영진용 요약과 우선 조치를 제시합니다.</p>}
+      {state === "error" && <p className="mt-3 text-sm text-red-400">⚠ {err}</p>}
+      {state === "done" && insight && (
+        <div className="mt-4 space-y-4">
+          <div className="flex items-center gap-3">
+            <span className={`rounded-full border px-3 py-1 text-sm font-semibold ${RISK_STYLE[insight.riskLevel] ?? RISK_STYLE["보통"]}`}>
+              위험도: {insight.riskLevel}
+            </span>
+          </div>
+          <p className="text-sm leading-relaxed text-slate-200">{insight.summary}</p>
+          {insight.prioritized.length > 0 && (
+            <div>
+              <p className="mb-2 text-sm font-medium text-slate-300">우선순위 (비즈니스 영향순)</p>
+              <ol className="space-y-2">
+                {insight.prioritized.map((p, i) => (
+                  <li key={i} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                    <p className="text-sm font-medium">{i + 1}. {p.name}</p>
+                    <p className="mt-1 text-xs text-slate-400">영향: {p.impact}</p>
+                    <p className="mt-1 text-xs text-emerald-400/90">조치: {p.fix}</p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+          {insight.topAction && (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+              <p className="text-sm"><strong className="text-emerald-400">가장 먼저 →</strong> {insight.topAction}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
 
 export const SEV_COLOR: Record<Severity, string> = {
   Critical: "#ef4444",
@@ -46,6 +127,8 @@ export default function ScanDashboard({ result }: { result: ScanResult }) {
           </div>
         ))}
       </div>
+
+      <AiAnalysis result={result} />
 
       <section className="grid gap-6 rounded-2xl border border-slate-800 bg-slate-900 p-6 sm:grid-cols-2">
         <div>

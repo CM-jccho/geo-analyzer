@@ -31,3 +31,17 @@ export interface ScanResult {
   summary: ScanSummary;
   vulnerabilities: Vulnerability[];
 }
+
+// AI 분석 레이어 (Claude) 결과
+export interface AiInsightItem {
+  id: string;
+  name: string;
+  impact: string; // 비즈니스 영향
+  fix: string; // 구체적 조치
+}
+export interface AiInsight {
+  riskLevel: "심각" | "높음" | "보통" | "낮음";
+  summary: string; // 경영진/비개발자용 총평
+  prioritized: AiInsightItem[];
+  topAction: string; // 가장 먼저 할 일
+}

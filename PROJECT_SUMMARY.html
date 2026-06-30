@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GEO Analyzer + AutoSec Scanner — 작업 정리</title>
+<style>
+  :root {
+    --bg:#0b1120; --panel:#111827; --panel2:#0f172a; --border:#1f2937;
+    --txt:#e5e7eb; --muted:#94a3b8; --dim:#64748b;
+    --emerald:#34d399; --blue:#60a5fa; --amber:#fbbf24; --red:#f87171; --violet:#a78bfa;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    line-height:1.65; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:920px; margin:0 auto; padding:48px 24px 80px; }
+  header.hero { border-bottom:1px solid var(--border); padding-bottom:28px; margin-bottom:36px; }
+  h1 { font-size:30px; margin:0 0 6px; letter-spacing:-.02em; }
+  .sub { color:var(--muted); margin:0 0 14px; }
+  .links a { color:var(--emerald); text-decoration:none; font-size:14px; margin-right:18px; border-bottom:1px dashed #334155; }
+  .links a:hover { color:#6ee7b7; }
+  h2 { font-size:21px; margin:44px 0 14px; padding-top:10px; }
+  h2 .tag { font-size:12px; color:var(--dim); font-weight:500; }
+  h3 { font-size:15px; color:var(--muted); margin:22px 0 8px; text-transform:none; }
+  p { margin:8px 0; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px 20px; margin:14px 0; }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:14px; }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:13px; }
+  tr:last-child td { border-bottom:none; }
+  code { background:#0b1220; border:1px solid var(--border); border-radius:5px; padding:1px 6px; font-size:12.5px; color:#cbd5e1; }
+  .badge { display:inline-block; border-radius:999px; padding:2px 9px; font-size:12px; font-weight:600; }
+  .b-ok { background:rgba(52,211,153,.12); color:var(--emerald); }
+  .b-warn { background:rgba(251,191,36,.12); color:var(--amber); }
+  .b-no { background:rgba(248,113,113,.12); color:var(--red); }
+  .b-sale { background:var(--red); color:#fff; }
+  .strike { color:var(--dim); text-decoration:line-through; }
+  ul.checklist { list-style:none; padding-left:0; }
+  ul.checklist li { padding:7px 0 7px 26px; position:relative; border-bottom:1px solid var(--border); }
+  ul.checklist li:before { content:"›"; position:absolute; left:6px; color:var(--emerald); font-weight:700; }
+  ul.checklist li:last-child { border-bottom:none; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:640px){ .grid{ grid-template-columns:1fr; } }
+  .sec-A{ border-left:3px solid var(--emerald); } .sec-B{ border-left:3px solid var(--blue); }
+  .sec-C{ border-left:3px solid var(--violet); } .sec-D{ border-left:3px solid var(--red); }
+  .muted { color:var(--muted); }
+  .small { font-size:13px; }
+  footer { margin-top:48px; padding-top:18px; border-top:1px solid var(--border); color:var(--dim); font-size:12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>GEO Analyzer <span class="muted">+</span> AutoSec Scanner</h1>
+    <p class="sub">프로젝트 작업 정리 · 2026-07-01</p>
+    <div class="links">
+      <a href="https://geo-analyzer-brown.vercel.app">🌐 라이브 사이트</a>
+      <a href="https://github.com/CM-jccho/geo-analyzer">📦 GitHub 저장소</a>
+    </div>
+  </header>
+
+  <section>
+    <h2>1. 개요</h2>
+    <p>Obsidian 볼트에 <strong>기획만 있던 <code>GEO-Analyzer</code></strong>를 실제 동작하는 Next.js 웹 서비스로 구현·배포하고, 같은 앱에 <strong>AutoSec Scanner(보안 취약점 스캐너)</strong>를 추가했다.</p>
+    <table>
+      <tr><th>제품</th><th>한 줄 정의</th><th>AI 연동</th><th>라이브</th></tr>
+      <tr><td><strong>GEO Analyzer</strong></td><td>URL을 넣으면 AI(ChatGPT·Claude 등)가 그 사이트를 어떻게 보는지 진단</td><td><span class="badge b-ok">Claude 실제 호출</span></td><td><span class="badge b-ok">동작</span></td></tr>
+      <tr><td><strong>AutoSec Scanner</strong></td><td>URL/GitHub 저장소의 보안 취약점(OWASP Top 10) 진단</td><td><span class="badge b-no">미연동 (Trivy/ZAP)</span></td><td><span class="badge b-warn">프로덕션 mock</span></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. GEO Analyzer</h2>
+    <div class="card">
+      <h3>진단 파이프라인 (100점 만점)</h3>
+      <ul class="checklist small">
+        <li><strong>Crawl</strong> — HTML·robots.txt·sitemap·llms.txt·본문 추출</li>
+        <li><strong>Tech (40점)</strong> — HTTPS·AI크롤러·Schema·sitemap·meta·OG·canonical·llms.txt·H1</li>
+        <li><strong>Content (30점)</strong> — <span class="badge b-ok">Claude</span> 팩트 밀도·인용 가능 문장·명료성 평가</li>
+        <li><strong>Multi-LLM (30점)</strong> — Claude/GPT/Perplexity/Gemini로 브랜드 인식·예측 가능성 측정</li>
+        <li><strong>Report</strong> — 영역별 즉시 개선 액션 TOP 5</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>비즈니스 모델 — 가치 사다리 <span class="badge b-sale">런칭 세일</span></h3>
+      <table>
+        <tr><th>단계</th><th>상품</th><th>가격</th><th>역할</th></tr>
+        <tr><td>1</td><td>Free 진단</td><td>₩0</td><td>리드 생성</td></tr>
+        <tr><td>2</td><td>Pro 구독</td><td><span class="strike">₩39,000</span> <strong>₩19,000/월</strong></td><td>직접 적용(DIY)</td></tr>
+        <tr><td>3</td><td><strong>적용 대행</strong></td><td><span class="strike">₩300,000</span> <strong>₩199,000~/건</strong></td><td>핵심 수익</td></tr>
+        <tr><td>4</td><td>관리 리테이너</td><td><span class="strike">₩900,000</span> <strong>₩690,000~/월</strong></td><td>반복 수익</td></tr>
+      </table>
+      <p class="small muted">진단 → 자동 견적("현재 70점 → 목표 92점") → 문의 폼 제출 시 이메일·전화·내용을 <code>jaechul.cho@gmail.com</code>으로 SMTP 발송(실발송 확인).</p>
+    </div>
+    <div class="card">
+      <h3>인프라</h3>
+      <ul class="checklist small">
+        <li>레이트리밋 — 분석 10분 5회 / 문의 10분 3회 (초과 시 429)</li>
+        <li>잡 큐 — BullMQ(Redis) ↔ 인메모리 폴백, Vercel은 동기 분석(maxDuration 60초)</li>
+        <li>KV 영속화 — 결과 공유 링크 <code>/result/[jobId]</code> 저장(TTL 30일, KV 연동 시)</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. AutoSec Scanner <span class="tag">/security</span></h2>
+    <div class="card">
+      <ul class="checklist small">
+        <li><strong>입력</strong> — URL 스캔(DAST) / GitHub 저장소(SAST) 탭</li>
+        <li><strong>엔진</strong> — <code>mock</code>(기본/프로덕션) 또는 <code>real</code>: Trivy(SAST) / OWASP ZAP(DAST)</li>
+        <li><strong>대시보드</strong>(다크) — 심각도 요약 카드 + Recharts 도넛 + 취약점 리스트(위치·설명·해결방안)</li>
+        <li><strong>공유</strong> — <code>/scan/[id]</code> 리포트 페이지 + 링크 복사</li>
+        <li><strong>플랜별 1일 한도</strong> — Free 3 / Pro 50 / Enterprise 1000회 (<code>x-plan-key</code> 헤더)</li>
+      </ul>
+      <p class="small muted">현재 AI 미연동. 취약점 <em>탐지</em>는 전용 엔진이 정석이며, <em>해석·우선순위·수정코드 생성</em>에 Claude 레이어를 추가하는 것이 후속 과제(아래 A-2).</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. 기술 스택</h2>
+    <div class="card small">
+      <p><strong>Frontend</strong> · Next.js 14.2.35(App Router), TypeScript, Tailwind CSS, Recharts</p>
+      <p><strong>Backend</strong> · Next.js API Routes, BullMQ + ioredis, Cheerio</p>
+      <p><strong>AI/LLM</strong> · @anthropic-ai/sdk(Claude) + OpenAI/Perplexity/Gemini REST</p>
+      <p><strong>메일</strong> · nodemailer(Gmail SMTP) &nbsp;|&nbsp; <strong>보안 엔진(real)</strong> · Trivy 0.72, OWASP ZAP</p>
+      <p><strong>저장/제한</strong> · Vercel KV(Upstash) ↔ 인메모리 &nbsp;|&nbsp; <strong>배포</strong> · Vercel + GitHub 자동 배포</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. 배포 현황</h2>
+    <table>
+      <tr><td>저장소</td><td><a href="https://github.com/CM-jccho/geo-analyzer" style="color:var(--blue)">github.com/CM-jccho/geo-analyzer</a> (public)</td></tr>
+      <tr><td>라이브</td><td><a href="https://geo-analyzer-brown.vercel.app" style="color:var(--blue)">geo-analyzer-brown.vercel.app</a></td></tr>
+      <tr><td>자동 배포</td><td>GitHub 연결됨 → push 시 자동 배포 (토큰 불필요)</td></tr>
+      <tr><td>환경변수(설정됨)</td><td><code>ANTHROPIC_API_KEY</code>, <code>ANTHROPIC_MODEL</code>, <code>SMTP_HOST/PORT/USER/PASS</code></td></tr>
+      <tr><td>미설정(선택)</td><td><code>KV_REST_API_*</code>(공유 영속), <code>SCANNER_MODE=real</code>(실제 스캔), <code>PRO_PLAN_KEYS</code>(플랜)</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>6. 검증 결과 (실측)</h2>
+    <table>
+      <tr><th>항목</th><th>결과</th></tr>
+      <tr><td>GEO 분석(라이브)</td><td>anthropic.com <strong>70/100</strong>, 실제 Claude 콘텐츠분석·노출테스트 동작 <span class="badge b-ok">✓</span></td></tr>
+      <tr><td>문의 메일</td><td><code>delivered: true</code> — jaechul.cho@gmail.com 실발송 <span class="badge b-ok">✓</span></td></tr>
+      <tr><td>BullMQ/Redis</td><td>소스 빌드 Redis로 4개 잡 큐 처리 확인 <span class="badge b-ok">✓</span></td></tr>
+      <tr><td>레이트리밋</td><td>한도 초과 시 429 <span class="badge b-ok">✓</span></td></tr>
+      <tr><td>실제 Trivy 스캔</td><td>package-lock.json에서 <strong>실제 CVE 23건</strong> 탐지 <span class="badge b-ok">✓</span></td></tr>
+      <tr><td>플랜 분기</td><td>Free/Pro 한도·잔여 횟수 정상 <span class="badge b-ok">✓</span></td></tr>
+      <tr><td>빌드/타입체크</td><td>전부 통과, 자동 배포 완료 <span class="badge b-ok">✓</span></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>7. 후속 마무리 작업</h2>
+
+    <div class="card sec-A">
+      <h3 style="color:var(--emerald)">A. 곧바로 가능 (코드 준비됨 / API 호출)</h3>
+      <ul class="checklist small">
+        <li><strong>Vercel KV 연동</strong> — KV(Upstash) 생성·연결 → 결과/스캔 공유 링크 영속 + 정확한 레이트리밋. (코드 완료, 프로비저닝만 필요)</li>
+        <li><strong>보안 스캐너 AI 분석 레이어</strong> — Claude로 취약점 우선순위화·맞춤 수정코드·자연어 리포트. Vercel에서 바로 동작.</li>
+        <li><strong>리드/문의 알림</strong> — 접수 시 Telegram/Slack 실시간 알림(<code>/api/contact</code>, <code>/api/lead</code>의 TODO).</li>
+      </ul>
+    </div>
+
+    <div class="card sec-B">
+      <h3 style="color:var(--blue)">B. 별도 인프라 필요</h3>
+      <ul class="checklist small">
+        <li><strong>보안 스캐너 실제 엔진 워커</strong> — Docker(Trivy + ZAP), <code>SCANNER_MODE=real</code>. (Vercel 서버리스는 엔진 실행 불가)</li>
+        <li><strong>결제 연동</strong> — Toss Payments/Stripe로 Pro 구독·적용 대행 결제.</li>
+        <li><strong>실제 인증</strong> — NextAuth/Clerk + DB. <code>x-plan-key</code>를 실제 계정·구독으로 교체.</li>
+      </ul>
+    </div>
+
+    <div class="card sec-C">
+      <h3 style="color:var(--violet)">C. 운영 · 품질</h3>
+      <ul class="checklist small">
+        <li><strong>커스텀 도메인</strong> — Vercel Domains에 보유 도메인 연결.</li>
+        <li><strong>분석 비용 통제</strong> — Free 진단 LLM 캐싱/2종 제한으로 API 비용 관리.</li>
+        <li><strong>공유 영속화 일관화</strong> — GEO 결과·스캔 리포트 모두 KV 기반 통일.</li>
+      </ul>
+    </div>
+
+    <div class="card sec-D">
+      <h3 style="color:var(--red)">D. 보안 점검 (중요)</h3>
+      <p class="small">진행 중 채팅에 노출된 자격증명은 모두 <strong>폐기 후 재발급</strong> 권장:</p>
+      <ul class="checklist small">
+        <li><strong>Vercel 토큰</strong> — vercel.com/account/tokens → Revoke</li>
+        <li><strong>Gmail 앱 비밀번호</strong> — myaccount.google.com/apppasswords → 삭제·재발급 → Vercel <code>SMTP_PASS</code> 갱신</li>
+        <li><strong>Anthropic API 키</strong> — 공개 사이트 사용 중이므로 사용량 모니터링 또는 제한 키로 교체</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    GEO Analyzer + AutoSec Scanner · AI 검색 최적화 진단 &amp; 보안 취약점 스캐너 · 작업 정리 문서
+  </footer>
+
+</div>
+</body>
+</html>
