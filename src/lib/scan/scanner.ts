@@ -83,8 +83,13 @@ export function runMockScan(type: ScanType, target: string): ScanResult {
   };
 }
 
-// 진입점 — 현재는 Mock. 실제 엔진 연동 시 runRealScan으로 교체.
+// 진입점 — SCANNER_MODE=real 이면 실제 엔진(Trivy/ZAP), 아니면 Mock.
+// 실제 엔진은 바이너리/데몬이 필요하므로(서버리스 불가) 기본은 mock.
 export async function runScan(type: ScanType, target: string): Promise<ScanResult> {
+  if (process.env.SCANNER_MODE === "real") {
+    const { runRealScan } = await import("./realScanner");
+    return runRealScan(type, target);
+  }
   return runMockScan(type, target);
 }
 

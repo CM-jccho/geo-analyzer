@@ -1,24 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import type { ScanResult, ScanType, Severity } from "@/lib/scan/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ScanResult, ScanType } from "@/lib/scan/types";
+import ScanDashboard from "../_components/ScanDashboard";
 
 type Phase = "idle" | "running" | "done" | "error";
-
-const SEV_COLOR: Record<Severity, string> = {
-  Critical: "#ef4444",
-  High: "#f97316",
-  Medium: "#eab308",
-  Low: "#3b82f6",
-};
-const SEV_BG: Record<Severity, string> = {
-  Critical: "bg-red-500/10 text-red-400 border-red-500/30",
-  High: "bg-orange-500/10 text-orange-400 border-orange-500/30",
-  Medium: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
-  Low: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-};
-
 const STEPS = ["타깃 검증", "스캐닝 엔진 구동", "취약점 탐지", "리포트 생성"];
 
 export default function SecurityScanner() {
@@ -28,8 +14,18 @@ export default function SecurityScanner() {
   const [progress, setProgress] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [scanId, setScanId] = useState<string | null>(null);
+  const [planLabel, setPlanLabel] = useState("Free");
+  const [remaining, setRemaining] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [planKey, setPlanKey] = useState("");
+  const [showPlanKey, setShowPlanKey] = useState(false);
   const timers = useRef<ReturnType<typeof setInterval>[]>([]);
+
+  useEffect(() => {
+    setPlanKey(localStorage.getItem("geo_plan_key") || "");
+  }, []);
 
   const clearTimers = () => {
     timers.current.forEach(clearInterval);
@@ -41,10 +37,11 @@ export default function SecurityScanner() {
     setPhase("running");
     setError("");
     setResult(null);
+    setScanId(null);
+    setCopied(false);
     setProgress(0);
     setStepIdx(0);
 
-    // 진행 애니메이션 (스캐닝 엔진 구동 연출)
     clearTimers();
     let p = 0;
     const t = setInterval(() => {
@@ -55,24 +52,38 @@ export default function SecurityScanner() {
     timers.current.push(t);
 
     try {
-      const res = await fetch("/api/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, target }),
-      });
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (planKey) headers["x-plan-key"] = planKey;
+      const res = await fetch("/api/scan", { method: "POST", headers, body: JSON.stringify({ type, target }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "스캔 실패");
       clearTimers();
       setProgress(100);
       setStepIdx(STEPS.length - 1);
       setResult(data.result);
+      setScanId(data.scanId);
+      setPlanLabel(data.planLabel ?? "Free");
+      setRemaining(typeof data.remaining === "number" ? data.remaining : null);
       setPhase("done");
     } catch (e: any) {
       clearTimers();
       setError(e.message);
       setPhase("error");
     }
-  }, [target, type, phase]);
+  }, [target, type, phase, planKey]);
+
+  const savePlanKey = () => {
+    localStorage.setItem("geo_plan_key", planKey);
+    setShowPlanKey(false);
+  };
+
+  const shareUrl = scanId ? `${typeof window !== "undefined" ? window.location.origin : ""}/scan/${scanId}` : "";
+  const copy = async () => {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -81,8 +92,27 @@ export default function SecurityScanner() {
           <span className="font-bold tracking-tight">
             AutoSec <span className="text-emerald-400">Scanner</span>
           </span>
-          <a href="/" className="text-sm text-slate-400 hover:text-slate-100">← GEO Analyzer</a>
+          <div className="flex items-center gap-4 text-sm">
+            <span className="rounded-full border border-slate-700 px-3 py-0.5 text-slate-300">
+              {planLabel} 플랜{remaining !== null ? ` · 남은 ${remaining}회` : ""}
+            </span>
+            <button onClick={() => setShowPlanKey((v) => !v)} className="text-slate-400 hover:text-slate-100">플랜 키</button>
+            <a href="/" className="text-slate-400 hover:text-slate-100">← GEO Analyzer</a>
+          </div>
         </div>
+        {showPlanKey && (
+          <div className="border-t border-slate-800 bg-slate-900">
+            <div className="mx-auto flex max-w-5xl items-center gap-2 px-5 py-3">
+              <input
+                value={planKey}
+                onChange={(e) => setPlanKey(e.target.value)}
+                placeholder="Pro/Enterprise 플랜 키 입력"
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+              />
+              <button onClick={savePlanKey} className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-900">저장</button>
+            </div>
+          </div>
+        )}
       </nav>
 
       <main className="mx-auto max-w-5xl px-5 py-12">
@@ -91,7 +121,6 @@ export default function SecurityScanner() {
           <p className="mt-2 text-slate-400">URL 또는 GitHub 저장소를 입력하면 OWASP Top 10 중심 취약점을 진단합니다.</p>
         </header>
 
-        {/* 입력 */}
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <div className="mb-4 inline-flex rounded-lg border border-slate-700 p-1 text-sm">
             {(["url", "repo"] as ScanType[]).map((t) => (
@@ -130,104 +159,23 @@ export default function SecurityScanner() {
             </div>
           )}
           {phase === "error" && <p className="mt-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-400">⚠ {error}</p>}
+
+          {phase === "done" && scanId && (
+            <div className="mt-4 flex items-center gap-2">
+              <input readOnly value={shareUrl} className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-400" />
+              <button onClick={copy} className="whitespace-nowrap rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium hover:bg-slate-800">
+                {copied ? "복사됨 ✓" : "리포트 링크 복사"}
+              </button>
+            </div>
+          )}
         </section>
 
-        {result && <Dashboard result={result} />}
-      </main>
-    </div>
-  );
-}
-
-function Dashboard({ result }: { result: ScanResult }) {
-  const s = result.summary;
-  const cards: { label: string; key: Severity; n: number }[] = [
-    { label: "Critical", key: "Critical", n: s.critical },
-    { label: "High", key: "High", n: s.high },
-    { label: "Medium", key: "Medium", n: s.medium },
-    { label: "Low", key: "Low", n: s.low },
-  ];
-  const chartData = cards.filter((c) => c.n > 0).map((c) => ({ name: c.label, value: c.n, color: SEV_COLOR[c.key] }));
-
-  return (
-    <div className="mt-8 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm text-slate-400">스캔 대상 · {result.engine}</p>
-          <p className="font-mono text-sm text-slate-200">{result.target}</p>
-        </div>
-        <span className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-300">
-          총 취약점 <strong className="text-slate-100">{s.total}</strong>건
-        </span>
-      </div>
-
-      {/* 요약 카드 */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {cards.map((c) => (
-          <div key={c.key} className={`rounded-xl border p-4 ${SEV_BG[c.key]}`}>
-            <p className="text-sm opacity-80">{c.label}</p>
-            <p className="mt-1 text-3xl font-bold">{c.n}</p>
+        {result && (
+          <div className="mt-8">
+            <ScanDashboard result={result} />
           </div>
-        ))}
-      </div>
-
-      {/* 도넛 + 분포 */}
-      <section className="grid gap-6 rounded-2xl border border-slate-800 bg-slate-900 p-6 sm:grid-cols-2">
-        <div>
-          <h3 className="mb-2 font-semibold">취약점 분포</h3>
-          {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}>
-                  {chartData.map((d) => (
-                    <Cell key={d.name} fill={d.color} stroke="none" />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, color: "#f1f5f9" }} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="py-16 text-center text-emerald-400">취약점이 발견되지 않았습니다 ✅</p>
-          )}
-        </div>
-        <div className="flex flex-col justify-center gap-2 text-sm">
-          {cards.map((c) => (
-            <div key={c.key} className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-sm" style={{ background: SEV_COLOR[c.key] }} />
-                {c.label}
-              </span>
-              <span className="text-slate-400">{c.n}건</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* 취약점 리스트 */}
-      <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
-        <h3 className="border-b border-slate-800 px-6 py-4 font-semibold">발견된 취약점</h3>
-        {result.vulnerabilities.length === 0 ? (
-          <p className="px-6 py-8 text-center text-slate-400">발견된 취약점이 없습니다.</p>
-        ) : (
-          <ul className="divide-y divide-slate-800">
-            {result.vulnerabilities.map((v) => (
-              <li key={v.id} className="px-6 py-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded border px-2 py-0.5 text-xs font-semibold ${SEV_BG[v.severity]}`}>{v.severity}</span>
-                  <span className="font-medium">{v.name}</span>
-                  <span className="text-xs text-slate-500">{v.category}</span>
-                </div>
-                <p className="mt-1 font-mono text-xs text-slate-500">📍 {v.location}</p>
-                <p className="mt-1 text-sm text-slate-400">{v.description}</p>
-                <p className="mt-1 text-sm text-emerald-400/90">→ {v.remediation}</p>
-              </li>
-            ))}
-          </ul>
         )}
-      </section>
-
-      <p className="text-center text-xs text-slate-600">
-        스캔 시각 {new Date(result.scannedAt).toLocaleString("ko-KR")} · 엔진: {result.engine}
-      </p>
+      </main>
     </div>
   );
 }
