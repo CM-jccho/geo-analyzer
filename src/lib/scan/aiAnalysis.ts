@@ -50,17 +50,21 @@ export async function analyzeWithAI(result: ScanResult): Promise<AiInsight | nul
       .join("\n") || "(발견된 취약점 없음)";
   const user = `스캔 대상: ${result.target}\n엔진: ${result.engine}\n심각도 요약: Critical ${s.critical} / High ${s.high} / Medium ${s.medium} / Low ${s.low}\n\n발견된 취약점:\n${list}`;
 
-  try {
-    const resp = await client.messages.create({
-      model,
-      max_tokens: 1200,
-      system: SYSTEM,
-      messages: [{ role: "user", content: user }],
-    });
-    const text = resp.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-    return parse(text);
-  } catch (e: any) {
-    console.error("[ai-analysis] 실패:", e?.message ?? e);
-    return null;
+  // 일시적 API 과부하/타임아웃 대비 최대 2회 시도
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const resp = await client.messages.create({
+        model,
+        max_tokens: 1200,
+        system: SYSTEM,
+        messages: [{ role: "user", content: user }],
+      });
+      const text = resp.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+      const parsed = parse(text);
+      if (parsed) return parsed;
+    } catch (e: any) {
+      console.error(`[ai-analysis] 시도 ${attempt} 실패:`, e?.message ?? e);
+    }
   }
+  return null;
 }
