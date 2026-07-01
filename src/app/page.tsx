@@ -307,8 +307,11 @@ export default function Home() {
                         <li key={it}>✓ {it}</li>
                       ))}
                     </ul>
-                    <a href="#contact" className={`mt-5 block rounded-lg py-2.5 text-center text-sm font-medium ${p.highlight ? "bg-red-500 text-white hover:bg-red-600" : "border border-slate-300 hover:bg-slate-50"}`}>
-                      {p.name === "Free 진단" ? "무료로 시작" : "문의하기"}
+                    <a
+                      href={p.name === "Pro 구독" ? "/checkout?plan=pro" : "#contact"}
+                      className={`mt-5 block rounded-lg py-2.5 text-center text-sm font-medium ${p.highlight ? "bg-red-500 text-white hover:bg-red-600" : "border border-slate-300 hover:bg-slate-50"}`}
+                    >
+                      {p.name === "Free 진단" ? "무료로 시작" : p.name === "Pro 구독" ? "구독 결제" : "문의하기"}
                     </a>
                   </div>
                 ))}
