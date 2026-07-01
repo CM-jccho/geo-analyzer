@@ -51,8 +51,12 @@ function computeConsistency(results: LlmQueryResult[], providerCount: number): n
   return Math.round((agreements.reduce((s, a) => s + a, 0) / agreements.length) * 100);
 }
 
-export async function runMultiLlmAgent(crawl: CrawlResult): Promise<{ exposure: LlmExposure; score: number; max: number }> {
-  const providers = getProviders();
+export async function runMultiLlmAgent(
+  crawl: CrawlResult,
+  maxProviders?: number,
+): Promise<{ exposure: LlmExposure; score: number; max: number }> {
+  let providers = getProviders();
+  if (maxProviders && maxProviders > 0) providers = providers.slice(0, maxProviders); // 플랜별 비용 통제
   if (providers.length === 0) {
     return {
       exposure: {

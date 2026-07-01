@@ -3,7 +3,12 @@ import { createJob, updateJob } from "@/lib/jobStore";
 import { enqueue } from "@/lib/queue";
 import { runAnalysisCore } from "@/lib/pipeline";
 import { saveResult } from "@/lib/resultStore";
+import { getCachedAnalysis, setCachedAnalysis } from "@/lib/analysisCache";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
+import { resolvePlan } from "@/lib/scan/plans";
+
+// 플랜별 GEO Multi-LLM 프로바이더 상한 (비용 통제): Free 2 / 그 외 전체
+const FREE_MAX_PROVIDERS = Number(process.env.FREE_MAX_LLM_PROVIDERS ?? 2);
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // 서버리스 동기 분석을 위한 함수 타임아웃(초)
@@ -37,13 +42,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "유효하지 않은 URL입니다." }, { status: 400 });
   }
 
+  // 비용 통제: 캐시된 결과 있으면 LLM 재호출 없이 반환
+  const cached = await getCachedAnalysis(candidate);
+  if (cached) {
+    const job = createJob(candidate);
+    updateJob(job.id, { status: "done", progress: 100, result: cached });
+    await saveResult(job.id, cached);
+    return NextResponse.json({ jobId: job.id, result: cached, cached: true }, { status: 200 });
+  }
+
+  // 플랜별 프로바이더 상한
+  const plan = resolvePlan(req);
+  const maxLlmProviders = plan.id === "free" ? FREE_MAX_PROVIDERS : undefined;
+
   const job = createJob(candidate);
 
   if (process.env.VERCEL) {
     try {
-      const result = await runAnalysisCore(candidate);
+      const result = await runAnalysisCore(candidate, { maxLlmProviders });
       updateJob(job.id, { status: "done", progress: 100, result });
-      await saveResult(job.id, result); // 공유 링크 영속화(KV 있을 때)
+      await Promise.all([saveResult(job.id, result), setCachedAnalysis(candidate, result)]);
       return NextResponse.json({ jobId: job.id, result }, { status: 200 });
     } catch (e: any) {
       updateJob(job.id, { status: "error", progress: 100, error: e?.message ?? String(e) });
