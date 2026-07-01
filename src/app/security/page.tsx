@@ -57,14 +57,31 @@ export default function SecurityScanner() {
       const res = await fetch("/api/scan", { method: "POST", headers, body: JSON.stringify({ type, target }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "스캔 실패");
-      clearTimers();
-      setProgress(100);
-      setStepIdx(STEPS.length - 1);
-      setResult(data.result);
       setScanId(data.scanId);
       setPlanLabel(data.planLabel ?? "Free");
       setRemaining(typeof data.remaining === "number" ? data.remaining : null);
-      setPhase("done");
+
+      const finish = (r: ScanResult) => {
+        clearTimers();
+        setProgress(100);
+        setStepIdx(STEPS.length - 1);
+        setResult(r);
+        setPhase("done");
+      };
+
+      if (data.result) {
+        finish(data.result); // 동기(인라인) 응답
+      } else if (data.status === "queued" && data.scanId) {
+        // 비동기(워커) — 상태 폴링
+        const poll = setInterval(async () => {
+          const s = await fetch(`/api/scan/${data.scanId}/status`).then((r) => r.json());
+          if (s.status === "done" && s.result) {
+            clearInterval(poll);
+            finish(s.result);
+          }
+        }, 2000);
+        timers.current.push(poll);
+      }
     } catch (e: any) {
       clearTimers();
       setError(e.message);

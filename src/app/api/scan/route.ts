@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runScan } from "@/lib/scan/scanner";
 import type { ScanType } from "@/lib/scan/types";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
 import { resolvePlan } from "@/lib/scan/plans";
-import { saveScan, newScanId } from "@/lib/scan/scanStore";
+import { newScanId, loadScan } from "@/lib/scan/scanStore";
+import { enqueueScan } from "@/lib/scan/scanQueue";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -53,9 +53,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "유효한 GitHub 저장소 URL을 입력해 주세요. (예: https://github.com/org/repo)" }, { status: 400 });
   }
 
-  const result = await runScan(type, normalized);
   const scanId = newScanId();
-  await saveScan(scanId, result);
+  const mode = await enqueueScan(scanId, type, normalized);
 
+  if (mode === "queued") {
+    // 비동기: 워커가 처리. 클라이언트는 /api/scan/:id/status 폴링
+    return NextResponse.json({ scanId, status: "queued", plan: plan.id, planLabel: plan.label, remaining: rl.remaining }, { status: 202 });
+  }
+
+  // 인라인: 결과가 저장됨
+  const result = await loadScan(scanId);
   return NextResponse.json({ scanId, result, plan: plan.id, planLabel: plan.label, remaining: rl.remaining }, { status: 200 });
 }

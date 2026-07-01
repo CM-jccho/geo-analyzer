@@ -1,0 +1,21 @@
+# 실제 스캔 엔진 워커 이미지 — Trivy + OWASP ZAP + Node 워커
+# 빌드: docker build -f Dockerfile.worker -t geo-scan-worker .
+# 실행: docker run --env-file .env geo-scan-worker
+FROM node:20-slim
+
+# Trivy 설치 (SAST)
+RUN apt-get update && apt-get install -y curl ca-certificates git \
+  && curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin \
+  && rm -rf /var/lib/apt/lists/*
+
+# (선택) OWASP ZAP은 별도 컨테이너(ghcr.io/zaproxy/zaproxy)를 데몬으로 띄우고
+# ZAP_API_URL로 연결하는 구성을 권장 — docker-compose.worker.yml 참고.
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+
+ENV SCANNER_MODE=real
+ENV TRIVY_BIN=/usr/local/bin/trivy
+CMD ["npm", "run", "worker"]

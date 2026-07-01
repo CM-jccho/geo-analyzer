@@ -1,0 +1,28 @@
+# 실제 스캔 엔진 워커 스택 (Redis 큐 + Trivy 워커 + ZAP 데몬)
+# 실행: docker compose -f docker-compose.worker.yml up
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    command: zap.sh -daemon -host 0.0.0.0 -port 8090 -config api.key=${ZAP_API_KEY:-changeme} -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
+    ports: ["8090:8090"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      SCAN_QUEUE: "1"
+      SCANNER_MODE: real
+      TRIVY_BIN: /usr/local/bin/trivy
+      REDIS_URL: redis://redis:6379
+      ZAP_API_URL: http://zap:8090
+      ZAP_API_KEY: ${ZAP_API_KEY:-changeme}
+      # 결과 공유용 KV (Upstash/Vercel KV) — 웹과 결과 공유에 필요
+      KV_REST_API_URL: ${KV_REST_API_URL:-}
+      KV_REST_API_TOKEN: ${KV_REST_API_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on: [redis, zap]
