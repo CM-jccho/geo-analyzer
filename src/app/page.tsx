@@ -153,6 +153,7 @@ export default function Home() {
             <a href="#pricing" className="hover:text-slate-900">가격</a>
             <a href="#contact" className="hover:text-slate-900">문의</a>
             <a href="/security" className="font-medium text-emerald-600 hover:text-emerald-700">보안 스캔</a>
+            <a href="/login" className="hover:text-slate-900">로그인</a>
           </div>
         </div>
       </nav>

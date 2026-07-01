@@ -2,6 +2,8 @@
 // 인증은 MVP에서 'x-plan-key' 헤더 기반(키→플랜 매핑)으로 처리한다.
 // 프로덕션에서는 이 resolvePlan을 실제 인증(NextAuth/Clerk + DB 조회)으로 교체한다.
 
+import { getSession } from "../auth/session";
+
 export type PlanId = "free" | "pro" | "enterprise";
 
 export interface Plan {
@@ -22,6 +24,11 @@ function keysFor(env: string | undefined): Set<string> {
 }
 
 export function resolvePlan(req: Request): Plan {
+  // 1) 로그인 세션의 플랜 우선
+  const session = getSession(req);
+  if (session?.plan && PLANS[session.plan as PlanId]) return PLANS[session.plan as PlanId];
+
+  // 2) 플랜 키 헤더
   const key = req.headers.get("x-plan-key")?.trim();
   if (key) {
     if (keysFor(process.env.ENTERPRISE_PLAN_KEYS).has(key)) return PLANS.enterprise;
